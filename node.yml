@@ -1,0 +1,39 @@
+name: Continues Deployment On AWS EC2
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: <your-aws-region>
+
+    - name: Login to Docker Hub
+      run: docker login -u <your-dockerhub-username> -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: <your-docker-image>
+
+    - name: Deploy to EC2
+      run: |
+        echo "${{ secrets.PRIVATE_KEY }}" > key.pem
+        chmod 400 key.pem
+        ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i key.pem ec2-user@<ec2-instance-ip> "docker pull <your-docker-image> && docker run -d <your-docker-image>"
+      env:
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
